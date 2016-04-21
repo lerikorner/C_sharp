@@ -5,122 +5,160 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.IO.Compression;
+using System.Threading;  //подключаем нужные библиотеки
 
 namespace Compress_Decompress
 {
-    class Program
+   class Program
    {
-      /*  static void zip(string inFileName, string outFileName)
+        
+        static int threadNumber = Environment.ProcessorCount;
+
+        static byte[][] dataArray = new byte[threadNumber][];
+        static byte[][] compressedDataArray = new byte[threadNumber][];
+
+        static int dataPortionSize = 1000000; // размер считываемого блока
+        static int dataArraySize = dataPortionSize * threadNumber;
+
+        static public void Compress(string inFileName)
         {
-            using (FileStream fileOpen = new FileStream(inFileName, FileMode.Open, FileAccess.Read))
+
+            FileStream inFile = new FileStream(inFileName, FileMode.Open); //конструктор открытия входного файла
+            FileStream outFile = new FileStream(inFileName + ".gz", FileMode.Append); //конструктор модификации выходного файла
+            int _dataPortionSize;
+            Thread[] tPool;
+            Console.Write("Compressing...");
+            while (inFile.Position < inFile.Length)
             {
-                using (FileStream fileCreate = new FileStream(outFileName, FileMode.Create, FileAccess.Write))
+                Console.Write(".");
+                tPool = new Thread[threadNumber];
+
+                //читаем файл по блокам
+                for (int portionCount = 0; (portionCount < threadNumber) && (inFile.Position < inFile.Length); portionCount++)
                 {
-                    using (GZipStream fileGZip = new GZipStream(fileCreate, CompressionMode.Compress))
+                    //запись считываем остаток целочисленного деления размера файла на размер блока в конце цикла
+                    if (inFile.Length - inFile.Position <= dataPortionSize)
                     {
-                        //     сжатие файла по одному байту
-                        if (false)
-                        {
-                            int buf;
-                            while ((buf = fileOpen.ReadByte()) > 0)
-                            {
-                                fileGZip.WriteByte((byte)buf);
-                            }
-                        }
-
-                        //     сжатие файла целиком
-                        if (true)
-                        {
-                            fileOpen.CopyTo(fileGZip, (int)fileOpen.Length);
-                        }
-
-                        //     сжатие файла с буффером по умолчанию(4096 байт)
-                        if (false)
-                        {
-                            fileOpen.CopyTo(fileGZip);
-                        }
+                        _dataPortionSize = (int)(inFile.Length - inFile.Position); 
+                    }
+                    else
+                    {
+                        _dataPortionSize = dataPortionSize;
+                    }
+                    dataArray[portionCount] = new byte[_dataPortionSize];
+                    inFile.Read(dataArray[portionCount], 0, _dataPortionSize);
+                    //раскидываем действия на потоки, пишем в них блоки
+                    tPool[portionCount] = new Thread(CompressBlock);
+                    tPool[portionCount].Start(portionCount);
+                }
+                //пишем блоки в выходной файл
+                for (int portionCount = 0; (portionCount < threadNumber) && (tPool[portionCount] != null);)
+                {
+                    if (tPool[portionCount].ThreadState == ThreadState.Stopped)
+                    {
+                        outFile.Write(compressedDataArray[portionCount], 0, compressedDataArray[portionCount].Length);
+                        portionCount++;
                     }
                 }
+            }
+            //...
+            outFile.Close();
+            inFile.Close();
+        }
+        //сжатие блока
+        static public void CompressBlock(object i)
+        {
+            using (MemoryStream output = new MemoryStream(dataArray[(int)i].Length)) //конструктор вывода данных из памяти
+            {
+                using (GZipStream cs = new GZipStream(output, CompressionMode.Compress)) //конструктор сжатия
+                {
+                    cs.Write(dataArray[(int)i], 0, dataArray[(int)i].Length); //пишем все выведенное в блок
+                }
+                compressedDataArray[(int)i] = output.ToArray();
             }
         }
-        static void unzip(string inFileName, string outFileName)
+        public static void Decompress(string inFileName)
         {
-            using (FileStream fileOpen = new FileStream(inFileName, FileMode.Open, FileAccess.Read))
+            try
             {
-                using (FileStream fileCreate = new FileStream(outFileName, FileMode.Create, FileAccess.Write))
+                FileStream inFile = new FileStream(inFileName, FileMode.Open);
+                FileStream outFile = new FileStream(inFileName.Remove(inFileName.Length - 3), FileMode.Append);
+                int _dataPortionSize;
+                int compressedBlockLength;
+                Thread[] tPool;
+                Console.Write("Decompressing...");
+                byte[] buffer = new byte[8];
+
+                while (inFile.Position < inFile.Length)
                 {
-                    using (GZipStream fileGZip = new GZipStream(fileOpen, CompressionMode.Decompress))
+                    Console.Write(".");
+                    tPool = new Thread[threadNumber];
+                    for (int portionCount = 0;
+                         (portionCount < threadNumber) && (inFile.Position < inFile.Length);
+                         portionCount++)
                     {
-                        //     сжатие файла по одному байту
-                        if (false)
-                        {
-                            int buf;
-                            while ((buf = fileGZip.ReadByte()) > 0)
-                            {
-                                fileCreate.WriteByte((byte)buf);
-                            }
-                        }
+                        inFile.Read(buffer, 0, 8);
+                        compressedBlockLength = BitConverter.ToInt32(buffer, 4);
+                        compressedDataArray[portionCount] = new byte[compressedBlockLength + 1];
+                        buffer.CopyTo(compressedDataArray[portionCount], 0);
 
-                        //     сжатие файла целиком
-                        if (true)
-                        {
-                            fileGZip.CopyTo(fileCreate, (int)fileOpen.Length);
-                        }
+                        inFile.Read(compressedDataArray[portionCount], 8, compressedBlockLength - 8);
+                        _dataPortionSize = BitConverter.ToInt32(compressedDataArray[portionCount], compressedBlockLength - 4);
+                        dataArray[portionCount] = new byte[_dataPortionSize];
 
-                        //     сжатие файла с буффером по умолчанию(4096 байт)
-                        if (false)
+                        tPool[portionCount] = new Thread(DecompressBlock);
+                        tPool[portionCount].Start(portionCount);
+                    }
+
+                    for (int portionCount = 0; (portionCount < threadNumber) && (tPool[portionCount] != null);)
+                    {
+                        if (tPool[portionCount].ThreadState == ThreadState.Stopped)
                         {
-                            fileGZip.CopyTo(fileCreate);
+                            outFile.Write(dataArray[portionCount], 0, dataArray[portionCount].Length);
+                            portionCount++;
                         }
                     }
                 }
-            }
-        }*/
-        static void Main(string[] args)
-        {
 
-          //  zip("d:/muz.rar", "d:/test_rar.Gz");
-         //   unzip("myFile.txt.Gz", "myNewFile.txt");
-          //  string fileName = "D:\\test.jpg";
-          //  Compress_me.Compress(fileName);
-            Console.WriteLine("completed");
+                outFile.Close();
+                inFile.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("ERROR:" + ex.Message);
+            }
+        }
+
+        public static void DecompressBlock(object i)
+        {
+            using (MemoryStream input = new MemoryStream(compressedDataArray[(int)i]))
+            {
+
+                using (GZipStream ds = new GZipStream(input, CompressionMode.Decompress))
+                {
+                    ds.Read(dataArray[(int)i], 0, dataArray[(int)i].Length);
+                }
+
+            }
+        }
+        public static void Main(string[] args)
+        {
+         /*   Console.CancelKeyPress += delegate {
+                // call methods to clean up
+                Console.WriteLine("PRESS ANY KEY TO EXIT");
+                Console.ReadKey();
+            };
+
+            while (true)
+            {
+
+            }*/
+        //    string fileNameIN = "D:/metal.mkv";
+            string fileNameOUT = "D:/output.gz";
+
+            //  Compress(fileName);
+            Decompress(fileNameOUT);
             Console.ReadKey();
         }
-     /*   public static class Program
-        {
-            private static void Main()
-            {
-                const string outputFile = "d:/output.gz";
-                  const string inputFile = "d:/metal.rar";
-
-                  using (FileStream outFile = File.Create(outputFile))
-                  {
-                      using (GZipStream zipStream = new GZipStream(outFile, CompressionMode.Compress))
-                      {
-                          using (FileStream fileStream = File.Open(inputFile, FileMode.Open))
-                          {
-                              fileStream.CopyTo(zipStream);
-                              Console.WriteLine("Compressed {0} from {1} to {2} bytes.",
-                                                 Path.GetFileName(fileStream.Name), fileStream.Length, outFile.Length);
-                          }
-                      }
-                  }*/
-         /*  Console.WriteLine("введите символы :");
-            ConsoleKeyInfo press = Console.ReadKey();
-
-            do
-            {
-                Console.WriteLine("   Вы нажали  : " + " " + press.KeyChar);
-                press = Console.ReadKey();
-                // Проверить нажатие модифицирующих клавиш.
-                if ((ConsoleModifiers.Alt & press.Modifiers) != 0)
-                    Console.WriteLine("Нажата клавиша <Alt>.");
-                if ((ConsoleModifiers.Control & press.Modifiers) != 0)
-                    Console.WriteLine("Нажата клавиша <Control>.");
-                if ((ConsoleModifiers.Shift & press.Modifiers) != 0)
-                    Console.WriteLine("Нажата клавиша <Shift>.");
-            } while (press.KeyChar!= 'Q');*/
-        }
-     //   }
-//  }
+    }
 }
