@@ -79,27 +79,28 @@ namespace Compress_Decompress
         }
         public static void Decompress(string inFileName)
         {
-            try
-            {
+        //    try
+       //     {
                 FileStream inFile = new FileStream(inFileName, FileMode.Open);
                 FileStream outFile = new FileStream(inFileName.Remove(inFileName.Length - 3), FileMode.Append);
                 int _dataPortionSize;
                 int compressedBlockLength;
                 Thread[] tPool;
                 Console.Write("Decompressing...");
-                byte[] buffer = new byte[8];
+                byte[] buffer = new byte[2];
 
                 while (inFile.Position < inFile.Length)
                 {
                     Console.Write(".");
                     tPool = new Thread[threadNumber];
-                    for (int portionCount = 0;
-                         (portionCount < threadNumber) && (inFile.Position < inFile.Length);
-                         portionCount++)
+                    for (int portionCount = 0; (portionCount < threadNumber) && (inFile.Position < inFile.Length); portionCount++)
                     {
-                        inFile.Read(buffer, 0, 8);
-                        compressedBlockLength = BitConverter.ToInt32(buffer, 4);
-                        compressedDataArray[portionCount] = new byte[compressedBlockLength + 1];
+                        inFile.Read(buffer, 0, 2);
+                        compressedBlockLength = BitConverter.ToInt32(buffer, 2);
+                        Console.WriteLine(compressedBlockLength);
+                        Console.WriteLine(buffer.Length);
+                        Console.WriteLine(portionCount);
+                        byte[][] compressedDataArray = new byte[2][];
                         buffer.CopyTo(compressedDataArray[portionCount], 0);
 
                         inFile.Read(compressedDataArray[portionCount], 8, compressedBlockLength - 8);
@@ -122,11 +123,11 @@ namespace Compress_Decompress
 
                 outFile.Close();
                 inFile.Close();
-            }
-            catch (Exception ex)
+         //   }
+        /*    catch (Exception ex)
             {
                 Console.WriteLine("ERROR:" + ex.Message);
-            }
+            }*/
         }
 
         public static void DecompressBlock(object i)
@@ -154,7 +155,7 @@ namespace Compress_Decompress
 
             }*/
         //    string fileNameIN = "D:/metal.mkv";
-            string fileNameOUT = "D:/output.gz";
+            string fileNameOUT = "D:/test.jpg.gz";
 
             //  Compress(fileName);
             Decompress(fileNameOUT);
