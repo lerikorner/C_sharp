@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.IO.Compression;
-using System.Threading;  //подключаем нужные библиотеки
+using System.Threading; 
 
 namespace Compress_Decompress
 {
@@ -79,67 +79,27 @@ namespace Compress_Decompress
         }
         public static void Decompress(string inFileName)
         {
-        //    try
-       //     {
-                FileStream inFile = new FileStream(inFileName, FileMode.Open);
-                FileStream outFile = new FileStream(inFileName.Remove(inFileName.Length - 3), FileMode.Append);
-                int _dataPortionSize;
-                int compressedBlockLength;
-                Thread[] tPool;
-                Console.Write("Decompressing...");
-                byte[] buffer = new byte[2];
-
-                while (inFile.Position < inFile.Length)
+            using (FileStream inFile = new FileStream(inFileName, FileMode.Open, FileAccess.Read))
+            {
+                using (GZipStream decomp = new GZipStream(inFile, CompressionMode.Decompress))
                 {
-                    Console.Write(".");
-                    tPool = new Thread[threadNumber];
-                    for (int portionCount = 0; (portionCount < threadNumber) && (inFile.Position < inFile.Length); portionCount++)
+                    string dir = Path.GetDirectoryName(inFileName);
+                    string decompressionFileName = dir + Path.GetFileNameWithoutExtension(inFileName) + "_decompressed";
+                    Console.Write("processing...");
+                    int BufferSize = 8192;
+                    using (FileStream outStream = new FileStream(inFileName, FileMode.Create, FileAccess.Write))
                     {
-                        inFile.Read(buffer, 0, 2);
-                        compressedBlockLength = BitConverter.ToInt32(buffer, 2);
-                        Console.WriteLine(compressedBlockLength);
-                        Console.WriteLine(buffer.Length);
-                        Console.WriteLine(portionCount);
-                        byte[][] compressedDataArray = new byte[2][];
-                        buffer.CopyTo(compressedDataArray[portionCount], 0);
-
-                        inFile.Read(compressedDataArray[portionCount], 8, compressedBlockLength - 8);
-                        _dataPortionSize = BitConverter.ToInt32(compressedDataArray[portionCount], compressedBlockLength - 4);
-                        dataArray[portionCount] = new byte[_dataPortionSize];
-
-                        tPool[portionCount] = new Thread(DecompressBlock);
-                        tPool[portionCount].Start(portionCount);
-                    }
-
-                    for (int portionCount = 0; (portionCount < threadNumber) && (tPool[portionCount] != null);)
-                    {
-                        if (tPool[portionCount].ThreadState == ThreadState.Stopped)
+                        int read = 0;
+                        byte[] buffer = new byte[BufferSize];
+                        while ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
                         {
-                            outFile.Write(dataArray[portionCount], 0, dataArray[portionCount].Length);
-                            portionCount++;
+                            outStream.Write(buffer, 0, read);
                         }
+                        outStream.Close();
                     }
+                    decomp.Close();
                 }
-
-                outFile.Close();
                 inFile.Close();
-         //   }
-        /*    catch (Exception ex)
-            {
-                Console.WriteLine("ERROR:" + ex.Message);
-            }*/
-        }
-
-        public static void DecompressBlock(object i)
-        {
-            using (MemoryStream input = new MemoryStream(compressedDataArray[(int)i]))
-            {
-
-                using (GZipStream ds = new GZipStream(input, CompressionMode.Decompress))
-                {
-                    ds.Read(dataArray[(int)i], 0, dataArray[(int)i].Length);
-                }
-
             }
         }
         public static void Main(string[] args)
@@ -154,10 +114,11 @@ namespace Compress_Decompress
             {
 
             }*/
-        //    string fileNameIN = "D:/metal.mkv";
-            string fileNameOUT = "D:/test.jpg.gz";
+            string fileNameIN = "D:/test.jpg";
+            string fileNameOUT = "D:/myfile.txt.gz";
 
-            //  Compress(fileName);
+            // Compress(fileNameIN);
+            // Extract(fileNameOUT);
             Decompress(fileNameOUT);
             Console.ReadKey();
         }
