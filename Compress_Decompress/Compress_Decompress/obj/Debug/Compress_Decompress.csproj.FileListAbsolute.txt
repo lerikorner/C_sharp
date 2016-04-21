@@ -1,1 +1,6 @@
 D:\VSP\Compress_Decompress\Compress_Decompress\bin\Debug\Compress_Decompress.exe.config
+D:\VSP\Compress_Decompress\Compress_Decompress\bin\Debug\Compress_Decompress.exe
+D:\VSP\Compress_Decompress\Compress_Decompress\bin\Debug\Compress_Decompress.pdb
+D:\VSP\Compress_Decompress\Compress_Decompress\obj\Debug\Compress_Decompress.csprojResolveAssemblyReference.cache
+D:\VSP\Compress_Decompress\Compress_Decompress\obj\Debug\Compress_Decompress.exe
+D:\VSP\Compress_Decompress\Compress_Decompress\obj\Debug\Compress_Decompress.pdb
