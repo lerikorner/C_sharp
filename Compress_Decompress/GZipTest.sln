@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compress_Decompress", "Compress_Decompress\Compress_Decompress.csproj", "{BC75D649-67B3-49D7-8F69-FE5E6F7791EE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GZipTest", "Compress_Decompress\GZipTest.csproj", "{BC75D649-67B3-49D7-8F69-FE5E6F7791EE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

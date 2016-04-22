@@ -9,148 +9,131 @@ using System.Threading;
 
 namespace Compress_Decompress
 {
-   class Program
-   {
-        
-        static int threadNumber = Environment.ProcessorCount;
+    class GZipTest
+    {
+        static int BufferSize = 1024 * 1024;
 
-        static byte[][] dataArray = new byte[threadNumber][];
-        static byte[][] compressedDataArray = new byte[threadNumber][];
-
-        static int dataPortionSize = 10000; // размер считываемого блока
-        static int dataArraySize = dataPortionSize * threadNumber;
-        static int BufferSize = 1024*1024;
-
-
-        static public void Compress(string inFileName)
+        public static void Compress(string inFileName,string outFileName, bool error)
         {
-            using (FileStream inFile = new FileStream(inFileName, FileMode.Open))
-            { 
-                using (FileStream comp = new FileStream(inFileName + ".gz", FileMode.Append))
-                {
-                    int read = 0;
-                    byte[] buffer = new byte[BufferSize];
-                    using (GZipStream inStream = new GZipStream(comp, CompressionMode.Compress))
-                    {
-                        Console.Write("packing: ");
-                        while ((read = inFile.Read(buffer, 0, BufferSize)) != 0)
-                        {
-                            Console.Write('-');
-                            inStream.Write(buffer, 0, read);
-                        }
-                        inStream.Close();
-                    }
-                    comp.Close();
-                }
-                inFile.Close();
-            }
-        }
-        //сжатие блока
-     /*   static public void CompressBlock(object i)
-        {
-            using (MemoryStream output = new MemoryStream(dataArray[(int)i].Length)) 
+            try
             {
-                using (GZipStream cs = new GZipStream(output, CompressionMode.Compress))
+                if (File.Exists(outFileName))
                 {
-                    cs.Write(dataArray[(int)i], 0, dataArray[(int)i].Length);
+                    File.Delete(outFileName);
                 }
-                compressedDataArray[(int)i] = output.ToArray();
-            }
-        }
-        public static void WriteZip(string zipFile, List<string> files, Action<int, string> progress,
-            Func<bool> cancel, string comment)
-        {
-            using (FileStream fs = new FileStream(zipFile, FileMode.Create, FileAccess.Write))
-            {
-                using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Compress))
+                using (FileStream inFile = new FileStream(inFileName, FileMode.Open))
                 {
-                    // write the header 
-                    WriteFieldToZipStream(Signature, ds);
-
-                    // write comment 
-                    WriteFieldToZipStream(comment, ds);
-
-                    // write file count 
-                    WriteFieldToZipStream(files.Count.ToString(), ds);
-
-                    int index = 0;
-                    foreach (string file in files)
+                    using (FileStream comp = new FileStream(outFileName + ".gz", FileMode.Create))
                     {
                         int read = 0;
                         byte[] buffer = new byte[BufferSize];
-                        using (FileStream sr = new FileStream(file, FileMode.Open, FileAccess.Read))
+                        using (GZipStream inStream = new GZipStream(comp, CompressionMode.Compress))
                         {
-                            WriteFieldToZipStream(Path.GetFileName(file), ds);
-
-                            // write the length of data coming from file 
-                            ds.Write(BitConverter.GetBytes(sr.Length), 0, sizeof(Int32));
-                            Debug.WriteLine("Length: " + sr.Length);
-
-                            // write actual file data to zip stream reading a block at a time 
-                            while ((read = sr.Read(buffer, 0, BufferSize)) != 0)
+                            Console.Write("packing: ");
+                            while ((read = inFile.Read(buffer, 0, BufferSize)) != 0)
                             {
-                                if (cancel()) break;
-                                ds.Write(buffer, 0, read);
+                                Console.Write('-');
+                                inStream.Write(buffer, 0, read);
                             }
+                            error = false;                       
+                            inStream.Close();
                         }
-
-                        if (cancel()) break;
-
-                        // report the ptogress back to the caller 
-                        progress((++index * 100) / files.Count, "Zipping file: " + file);
-                        Debug.WriteLine("Percent: " + (index * 100) / files.Count);
+                        comp.Close();
                     }
+                    inFile.Close();
                 }
             }
-        }*/
-        public static void Decompress(string inFileName)
-        {
-            using (FileStream inFile = new FileStream(inFileName, FileMode.Open, FileAccess.Read))
+
+            catch (Exception ex)
             {
-                using (GZipStream decomp = new GZipStream(inFile, CompressionMode.Decompress))
-                {
-                    string dir = Path.GetDirectoryName(inFileName);
-                    string decompressionFileName = dir + Path.GetFileNameWithoutExtension(inFileName) + "_decompressed";
-                    Console.Write("unpacking: ");
-                    using (FileStream outStream = new FileStream(decompressionFileName, FileMode.Create, FileAccess.Write))
-                    {
-                        int read = 0;
-                        byte[] buffer = new byte[BufferSize];
-                        while ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
-                        {
-                            Console.Write('-');
-                            outStream.Write(buffer, 0, read);
-                        }
-                        outStream.Close();
-                    }
-                    decomp.Close();
-                }
-                inFile.Close();
+                Console.WriteLine("ERROR: " + ex.Message);
+                error = true;
             }
+            GC.Collect();
         }
+
+        public static void Decompress(string inFileName, string outFileName, bool error)
+        {
+            try
+            {
+                if (File.Exists(outFileName))
+                {
+                    File.Delete(outFileName);
+                }
+                using (FileStream inFile = new FileStream(inFileName, FileMode.Open, FileAccess.Read))
+                {
+                    using (GZipStream decomp = new GZipStream(inFile, CompressionMode.Decompress))
+                    {
+                        string dir = Path.GetDirectoryName(inFileName);
+                       // string decompressionFileName = dir + outFileName
+                       //Path.GetFileNameWithoutExtension(inFileName) 
+                       //     + "_decompressed";
+                        Console.Write("unpacking: ");
+                        using (FileStream outStream = new FileStream(outFileName, FileMode.Create, FileAccess.Write))
+                        {
+                            int read = 0;
+                            byte[] buffer = new byte[BufferSize];
+                            while ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
+                            {
+                                Console.Write('-');
+                                outStream.Write(buffer, 0, read);
+                                error = false;
+                            }
+                            outStream.Close();
+                        }
+                        decomp.Close();
+                    }
+                    inFile.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("ERROR: " + ex.Message);
+                error = true;
+            }
+            GC.Collect();
+
+        }
+    }
+    
+    class Program
+    {
+        
+        static string GZip, fIN, fOUT;
+        static bool error;
+       
         public static void Main(string[] args)
         {
-            if (args.Length == 3)
+            try
             {
-                string mode = args[0];
-                string file1 = args[1];
-                string file2 = args[2];
-                        
+                GZip = args[0];
+                fIN = args[1];
+                fOUT = args[2];
+                Console.CancelKeyPress += delegate
+                {
+                    GC.Collect();
+                };
+                while (true)
+                {
+                    //string fIN = "d:/7.avi";
+                    //string fOUT = "d:/myfile.txt.gz";
+                    if (GZip == "compress")
+                    {
+                        GZipTest.Compress(fIN,fOUT,error);
+                    }
+                    else if (GZip == "decompress")
+                    {
+                        GZipTest.Decompress(fIN,fOUT,error);
+                    }
+                    Console.Write("press CTRL+C to terminate. CODE {0}", error ? "1":"0");
+                    Console.ReadLine();                                 
+                }
             }
-            Console.CancelKeyPress += delegate 
+            catch (Exception ex)
             {
-                   Console.WriteLine("PRESS ANY KEY TO EXIT");
-                   Console.ReadKey();
-             };
-             while (true)
-             {
-                string fileNameIN = "d:/7.avi";
-                string fileNameOUT = "d:/acad.rar";
-
-                //   Compress(fileNameIN);
-                Decompress(fileNameOUT);
-                Console.ReadKey();
-            }           
+                Console.WriteLine("ERROR: " + ex.Message);
+            }
+            Console.ReadLine();
         }
     }
 }
