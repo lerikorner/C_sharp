@@ -11,9 +11,9 @@ namespace Compress_Decompress
 {
     class GZipTest
     {
-        static int BufferSize = 32768;
+        static int BufferSize = 2048*2048;
         const  int multithread= 2;//количество потоков
-        static public void WriteBlock(GZipStream inStream,int read, byte[] buffer)
+        public static void WriteBlock(GZipStream inStream,int read, byte[] buffer)
         {         
             Console.Write('-');
             inStream.Write(buffer, 0, read);
@@ -25,10 +25,6 @@ namespace Compress_Decompress
             inStream.Write(buffer, 0, read);
         }
 
-        public static void ReadBuf(FileStream inFile, byte[] buffer,int read)
-        {
-            read = inFile.Read(buffer, 0, BufferSize);
-        }
         public static void Compress(string inFileName, string outFileName, bool error)//путь к входному файлу, путь к выходному файлу, флаг
         {
             try
@@ -43,19 +39,14 @@ namespace Compress_Decompress
                         //
                         int td=1, read = 0;
                         byte[] buffer = new byte[BufferSize];
-                        GZipStream inStream = new GZipStream(comp, CompressionMode.Compress);//буферный поток сжатия
+                        long bufCount = inFile.Length / BufferSize;
+                        using (GZipStream inStream = new GZipStream(comp, CompressionMode.Compress))
                         {
-                            Thread[] thread = new Thread[100000];
-                            do
+                            while ((read = inFile.Read(buffer, 0, BufferSize)) != 0)
                             {
-                                thread[td] = new Thread(delegate () { ReadBuf(inFile,buffer, read); });
                                 WriteBlock(inStream, read, buffer);
-                                td++;
                             }
-                            while (((read = inFile.Read(buffer, 0, BufferSize)) != 0) | (td < multithread)) ;
-
                             inStream.Close();
-
                         }
                         comp.Close();
                     }                 
@@ -91,13 +82,18 @@ namespace Compress_Decompress
                             while ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
                             {
                                 Thread[] thread = new Thread[multithread];
-                                for (int td = 0; td < multithread; td++)
-                                {
-                                    thread[td] = new Thread(delegate () { WriteBlockCompressed(outStream, read, buffer); });
-                                    thread[td].Start();
-                                    thread[td].Join();
-                                }
-                            }                            
+                                //          for (int td = 0; td < multithread; td++)
+                                //           {
+                                /**  thread[0] = new Thread(delegate () { WriteBlockCompressed(outStream, read, buffer); });
+                                  thread[0].Start();
+                                  thread[0].Join();
+                              thread[1] = new Thread(delegate () { WriteBlockCompressed(outStream, read, buffer); });
+                              thread[1].Start();
+                              thread[1].Join();*/
+                                WriteBlockCompressed(outStream,read,buffer);
+
+                                //          }
+                            }
                             outStream.Close();
                         }
                         decomp.Close();
@@ -124,6 +120,8 @@ namespace Compress_Decompress
 
         public static void Main(string[] args)//параметры для командной строки закомментированы для отладки!!!!
         {
+            DateTime dold = DateTime.Now;
+
             try
             {
                 //GZip = args[0]; во время работы с консолью и раскомментировать fIN, fOUT!!!!
@@ -138,9 +136,9 @@ namespace Compress_Decompress
 
              //   while (true)
                 {
-                    GZip = "compress";              //
-                    fIN = "d:/acad.doc"; //тестовые значения для отладки!!!!!
-                    fOUT = "d:/acad55.doc.gz";    //
+                    GZip = "decompress";              //
+                    fOUT = "d:/test.avi"; //тестовые значения для отладки!!!!!
+                    fIN = "d:/test.avi.gz";    //
                     if (GZip == "compress")   
                     {
                         Console.WriteLine("packing: ");
@@ -161,6 +159,8 @@ namespace Compress_Decompress
             {
                 Console.WriteLine("ERROR: " + ex.Message);
             }
+            TimeSpan sp = DateTime.Now - dold;
+            Console.WriteLine(sp);
             Console.ReadLine();
         }
     }
