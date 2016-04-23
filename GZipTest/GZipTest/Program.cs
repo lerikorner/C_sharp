@@ -8,21 +8,19 @@ namespace Compress_Decompress
     class GZipTest
     {
         static int BufferSize = 4096*4096;
-        static int BlockSize = BufferSize / multithread;
 
         const int multithread= 8;//количество потоков
-        public static void WriteBlock(GZipStream inStream,int read, byte[] buffer)
+        public static void WriteBlock(GZipStream inStream,int read, byte[] buffer) //запись в архив из входного блока
         {         
             Console.Write('-');
             inStream.Write(buffer, 0, read);
         }
 
-        public static void WriteBlockCompressed(FileStream inStream, int read, byte[] buffer)//запись блока
+        public static void WriteBlockCompressed(FileStream inStream, int read, byte[] buffer)//запись архивного блока в выходной файл
         {
             Console.Write('-');
             inStream.Write(buffer, 0, read);
         }
-
        
         public static void Compress(string inFileName, string outFileName, bool error)//путь к входному файлу, путь к выходному файлу, флаг
         {
@@ -36,29 +34,39 @@ namespace Compress_Decompress
                         // ПРИ РАБОТЕ С КОНСОЛЬЮ WINDOWS 
                         // ОБЯЗАТЕЛЬНО УКАЗЫВАЕМ ПОЛНЫЙ ПУТЬ И РАСШИРЕНИЕ ДЛЯ ВХОДНЫХ И ВЫХОДНЫХ ФАЙЛОВ!!!! 
                         //
-                        int td=1, read = 0;
+                        int read = 0;
                         byte[] buffer = new byte[BufferSize];
-                        long bufCount = inFile.Length / BufferSize;
-                        using (GZipStream inStream = new GZipStream(comp, CompressionMode.Compress))
+                        using (GZipStream inStream = new GZipStream(comp, CompressionMode.Compress))//буферный поток сжатия
                         {
-                            while ((read = inFile.Read(buffer, 0, BufferSize)) != 0)
+                            while (inFile.Length > inFile.Position)
                             {
-                                WriteBlock(inStream, read, buffer);
+                                Thread[] thread = new Thread[multithread];//множим потоки 
+                                for (int i = 0; i < multithread; i++)
+                                {
+                                    read = inFile.Read(buffer, 0, BufferSize);
+                                    Console.Write("|{0}", i);//смотрим на флаг смены потоков
+                                    thread[i] = new Thread(() =>
+                                    WriteBlock(inStream, read, buffer)
+                                    );
+                                    thread[i].Start();
+                                }
+                                foreach (Thread trd in thread)
+                                {
+                                    trd.Join();
+                                }
                             }
-                            inStream.Close();
                         }
                         comp.Close();
                     }                 
                     inFile.Close(); 
                 }
                 error = false;
+                Console.WriteLine(" finished packing. ");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ERROR: " + ex.Message);
                 error = true;
-                Console.Write("press CTRL+C to terminate. CODE {0}", error ? "1" : "0");
-
             }
         }
 
@@ -74,107 +82,98 @@ namespace Compress_Decompress
                         // ПРИ РАБОТЕ С КОНСОЛЬЮ WINDOWS 
                         // ОБЯЗАТЕЛЬНО УКАЗЫВАЕМ ПОЛНЫЙ ПУТЬ И РАСШИРЕНИЕ ДЛЯ ВХОДНЫХ И ВЫХОДНЫХ ФАЙЛОВ!!!! 
                         //
-                        try
+                        using (FileStream outStream = new FileStream(outFileName, FileMode.Create, FileAccess.Write))//инициализация выходного файла
                         {
-                            using (FileStream outStream = new FileStream(outFileName, FileMode.Create, FileAccess.Write))//инициализация выходного файла
+                            int read;
+                            byte[] buffer = new byte[BufferSize];
+                            while (inFile.Length > inFile.Position)
                             {
-                                int read;
-                                byte[] buffer = new byte[BufferSize];
-
-                                while (inFile.Length>inFile.Position)
-                              //      ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
+                                Thread[] thread = new Thread[multithread];
+                                for (int i = 0; i < multithread; i++)
                                 {
-                                    Thread[] thread = new Thread[multithread];
-                                    for (int i=0; i<multithread; i++)
-                                    {
-                                        read=decomp.Read(buffer, 0, BufferSize);
-                                        Console.Write("|{0}",i);//смотрим на флаг смены потоков
-                                        thread[i] = new Thread(() =>
-                                        WriteBlockCompressed(outStream, read, buffer)
-                                       );
-                                        thread[i].Start();
-                                        thread[i].Join();
-                                    }
-                                    foreach (Thread trd in thread)
-                                    {
-                                        trd.Join();
-                                    }
+                                    read = decomp.Read(buffer, 0, BufferSize);
+                                    Console.Write("|{0}", i);//смотрим на флаг смены потоков
+                                    thread[i] = new Thread(() =>
+                                    WriteBlockCompressed(outStream, read, buffer)
+                                   );
+                                    thread[i].Start();
                                 }
-                                outStream.Close();
+                                foreach (Thread trd in thread)//закрываем все потоки
+                                {
+                                    trd.Join();
+                                }
                             }
-                            decomp.Close();
+                            outStream.Close();
                         }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine("ERROR: " + ex.Message);
-                            error = true;
-                            Console.Write("press CTRL+C to terminate. CODE {0}", error ? "1" : "0");
-                        }
-                        
+                        decomp.Close();
                     }
-                    inFile.Close();
+                inFile.Close();
                 }
+                Console.WriteLine(" finished unpacking. ");
                 error = false;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ERROR: " + ex.Message);
                 error = true;
-                Console.Write("press CTRL+C to terminate. CODE {0}", error ? "1" : "0");
             }
-        }
-    
+        }    
     }
 
     class Program
     {
-
         static string GZip, fIN, fOUT;
-        static bool error;
+        static bool error = true, 
+                     flag = true;
 
         public static void Main(string[] args)//параметры для командной строки закомментированы для отладки!!!!
         {
             DateTime dold = DateTime.Now;
-
             try
             {
-                //GZip = args[0]; во время работы с консолью и раскомментировать fIN, fOUT!!!!
-                //fIN = args[1];
-                //fOUT = args[2];
-               /* Console.CancelKeyPress += delegate //ловим ctrl+c
+                GZip = args[0]; //во время работы с консолью  раскомментировать GZip, fIN, fOUT!!!!
+                fIN = args[1];
+                fOUT = args[2];
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("ERROR: " + ex.Message+"|| Неверно введены параметры.");
+                error = true;
+            }
+
+            try
+            { 
+                Console.CancelKeyPress += delegate //ловим ctrl+c
                 {
                     GC.Collect(); //чистим мусор
+                    flag = false;
                 };
-                Console.Write("press CTRL+C to terminate!!!! CODE {0}", error ? "1" : "0");
-                Console.ReadLine();*/
-
-             //   while (true)
+                while ((true)&(flag))
                 {
-                    GZip = "decompress";              //
-                    fOUT = "d:/test.avi"; //тестовые значения для отладки!!!!!
-                    fIN = "d:/test.avi.gz";    //
+                 //   GZip = "compress";              //
+                 //   fIN = "d:/acad.doc"; //тестовые значения для отладки!!!!!
+                 //   fOUT = "d:/acad.doc.gz";    //
                     if (GZip == "compress")   
                     {
                         Console.WriteLine("packing: ");
                         GZipTest.Compress(fIN, fOUT, error);
-                        Console.WriteLine(" finished packing. ");
-
                     }
                     else if (GZip == "decompress")
                     {
                         Console.Write("unpacking: ");
                         GZipTest.Decompress(fIN, fOUT, error);
-                        Console.WriteLine(" finished unpacking. ");
-
                     }
+                    flag = false;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ERROR: " + ex.Message);
+                error = true;
             }
             TimeSpan sp = DateTime.Now - dold;
-            Console.WriteLine(sp);
+            Console.WriteLine("press Enter to terminate! CODE {0}", error ? "1" : "0");
+            Console.WriteLine("completed in {0} secs",sp);
             Console.ReadLine();
         }
     }
