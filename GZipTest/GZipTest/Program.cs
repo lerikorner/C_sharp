@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
 using System.IO.Compression;
 using System.Threading;
@@ -11,8 +7,10 @@ namespace Compress_Decompress
 {
     class GZipTest
     {
-        static int BufferSize = 2048*2048;
-        const  int multithread= 2;//количество потоков
+        static int BufferSize = 4096*4096;
+        static int BlockSize = BufferSize / multithread;
+
+        const int multithread= 8;//количество потоков
         public static void WriteBlock(GZipStream inStream,int read, byte[] buffer)
         {         
             Console.Write('-');
@@ -25,6 +23,7 @@ namespace Compress_Decompress
             inStream.Write(buffer, 0, read);
         }
 
+       
         public static void Compress(string inFileName, string outFileName, bool error)//путь к входному файлу, путь к выходному файлу, флаг
         {
             try
@@ -67,7 +66,7 @@ namespace Compress_Decompress
         {
             try
             {
-                using (FileStream inFile = new FileStream(inFileName, FileMode.Open, FileAccess.Read))//инициализация входного файла
+                FileStream inFile = new FileStream(inFileName, FileMode.Open, FileAccess.Read);//инициализация входного файла
                 {
                     using (GZipStream decomp = new GZipStream(inFile, CompressionMode.Decompress))//инициализация буфера распаковки
                     {
@@ -75,28 +74,43 @@ namespace Compress_Decompress
                         // ПРИ РАБОТЕ С КОНСОЛЬЮ WINDOWS 
                         // ОБЯЗАТЕЛЬНО УКАЗЫВАЕМ ПОЛНЫЙ ПУТЬ И РАСШИРЕНИЕ ДЛЯ ВХОДНЫХ И ВЫХОДНЫХ ФАЙЛОВ!!!! 
                         //
-                        using (FileStream outStream = new FileStream(outFileName, FileMode.Create, FileAccess.Write))//инициализация выходного файла
+                        try
                         {
-                            int read = 0;
-                            byte[] buffer = new byte[BufferSize];
-                            while ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
+                            using (FileStream outStream = new FileStream(outFileName, FileMode.Create, FileAccess.Write))//инициализация выходного файла
                             {
-                                Thread[] thread = new Thread[multithread];
-                                //          for (int td = 0; td < multithread; td++)
-                                //           {
-                                /**  thread[0] = new Thread(delegate () { WriteBlockCompressed(outStream, read, buffer); });
-                                  thread[0].Start();
-                                  thread[0].Join();
-                              thread[1] = new Thread(delegate () { WriteBlockCompressed(outStream, read, buffer); });
-                              thread[1].Start();
-                              thread[1].Join();*/
-                                WriteBlockCompressed(outStream,read,buffer);
+                                int read;
+                                byte[] buffer = new byte[BufferSize];
 
-                                //          }
+                                while (inFile.Length>inFile.Position)
+                              //      ((read = decomp.Read(buffer, 0, BufferSize)) != 0)
+                                {
+                                    Thread[] thread = new Thread[multithread];
+                                    for (int i=0; i<multithread; i++)
+                                    {
+                                        read=decomp.Read(buffer, 0, BufferSize);
+                                        Console.Write("|{0}",i);//смотрим на флаг смены потоков
+                                        thread[i] = new Thread(() =>
+                                        WriteBlockCompressed(outStream, read, buffer)
+                                       );
+                                        thread[i].Start();
+                                        thread[i].Join();
+                                    }
+                                    foreach (Thread trd in thread)
+                                    {
+                                        trd.Join();
+                                    }
+                                }
+                                outStream.Close();
                             }
-                            outStream.Close();
+                            decomp.Close();
                         }
-                        decomp.Close();
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("ERROR: " + ex.Message);
+                            error = true;
+                            Console.Write("press CTRL+C to terminate. CODE {0}", error ? "1" : "0");
+                        }
+                        
                     }
                     inFile.Close();
                 }
