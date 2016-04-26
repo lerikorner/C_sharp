@@ -27,6 +27,7 @@ namespace Intersection
                     }
                 }
             }
+            if (count>100000000) count--;
             return count;
         }
     }
