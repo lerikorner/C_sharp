@@ -21,7 +21,7 @@ namespace Intersection
             {
                 for (int j = i; j < n; j++)
                 {
-                    if ((coord[i, 0] >= coord[j, 1])|| (coord[i, 1] <= coord[j, 0]))
+                    if ((coord[j, 0] >= coord[i, 1])&& (i!=j)&& (coord[j, 1] <= coord[i, 0]))
                     {
                         count++;
                     }
@@ -35,7 +35,7 @@ namespace Intersection
         static void Main(string[] args)
 
         {
-            int[] circles = new int[] { 1, 0, 1,0,1 };
+            int[] circles = new int[] {1,5,2,1,4,0};
             int count = InterSection.solution(circles, circles.Length);
             Console.WriteLine("Количество пересечений: {0}", count);
             Console.ReadKey();
