@@ -8,7 +8,7 @@ namespace Compress_Decompress
 
     class GZipTest
     {
-        static int BufferSize = 2048 * 2048;  //!!!!!!
+        public static int BufferSize = 2048 * 2048;  //!!!!!!
         public static bool error;
         public static  int multithread = Environment.ProcessorCount;//количество потоков
      
@@ -33,7 +33,9 @@ namespace Compress_Decompress
                             object block = new object();
                             while ((inFile.Length - inFile.Position) > BufferSize)
                             {                                   
-                                for (j = 0; (j < multithread-1) && ((inFile.Length - inFile.Position) > BufferSize); j++)
+                                for (j = 0; (j < multithread-1) && 
+                                    (inFile.Length - inFile.Position > BufferSize)&&
+                                    (inFile.Position<FileModify.GZipLimit); j++)
                                 {
                                  //   read = inFile.Read(buffer, 0, BufferSize);
 
@@ -128,8 +130,71 @@ namespace Compress_Decompress
             }
         }
     }
-    class FileCreation
+    class FileModify
     {
+        // public static long GZipLimit = 4294967296; // 4*2^30
+         public static long GZipLimit = 30000000;
+
+        public static void SplitFile(string infile)
+        {
+            int read;
+            var extension = Path.GetExtension(infile);
+            var name = Path.GetFileNameWithoutExtension(infile);
+            var directoryName = Path.GetDirectoryName(infile);
+            byte[] buffer = new byte[GZipTest.BufferSize];
+            int tail =Convert.ToInt32( GZipLimit % GZipTest.BufferSize);
+            using (FileStream _from_stream = new FileStream(infile, FileMode.Open))
+            {
+                long _file_count = _from_stream.Length /GZipLimit;
+                for (int i = 0; i < _file_count+1; i++)
+                {
+                    using (FileStream _to_stream = new FileStream(string.Format(directoryName+"boof1"+"_{0}"+extension, i), 
+                                                                  FileMode.Create,FileAccess.Write))
+                    {
+                        Console.WriteLine("{0}й том для архивации создается...", i);
+                        _from_stream.Position = i * GZipLimit;
+                        while ((_to_stream.Length<GZipLimit)&&(_from_stream.Position<_from_stream.Length))
+                        {
+                            read = _from_stream.Read(buffer, 0, GZipTest.BufferSize);
+                            if ((GZipLimit - _to_stream.Position < GZipTest.BufferSize)&&(i!=_file_count))
+                            {
+                                read = _from_stream.Read(buffer, 0, tail);
+                            }
+                            _to_stream.Write(buffer, 0, read);
+                        }
+                        _to_stream.Close();
+                    }
+                }
+               // _from_stream.Close();
+            }          
+        }
+        public static void MergeFile(string infile)
+        {
+            int read;
+            var extension = Path.GetExtension(infile);
+            var name = Path.GetFileNameWithoutExtension(infile);
+            var directoryName = Path.GetDirectoryName(infile);
+            byte[] buffer = new byte[GZipTest.BufferSize];
+            using (FileStream _to_stream = new FileStream(infile, FileMode.Append,FileAccess.Write))
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    using (FileStream _from_stream = new FileStream(string.Format(directoryName + "boof1" + "_{0}" + extension, i),
+                                                                  FileMode.Open, FileAccess.Read))
+                    {
+                        //_from_stream.Position = i * GZipLimit;
+                     //   _to_stream.Position = i * GZipLimit;
+                        while (((read = _from_stream.Read(buffer, 0, GZipTest.BufferSize)) != 0))
+                        {
+                            _to_stream.Write(buffer, 0, read);
+                        }
+                        _from_stream.Close();
+                    }
+                    Console.WriteLine("{0}й том соединен.", i);
+                }
+              //   _to_stream.Close();
+            }
+        }
         public static void Txt_Create (ulong sz)
         {
             char[] simb = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1' };
@@ -183,51 +248,53 @@ namespace Compress_Decompress
         public static void Main(string[] args)//параметры для командной строки должны быть закомментированы для отладки!!!!
         {
             DateTime dold = DateTime.Now;
-       /*        try
+            /*        try
+                    {
+                        GZip = args[0]; //во время работы с консолью  раскомментировать GZip, fIN, fOUT!!!!
+                        fIN = args[1];
+                        fOUT = args[2];
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("ERROR: " + ex.Message+"|| Неверно введены параметры.");
+                        GZipTest.error = true;
+                    }*/
+
+            /*   try
                {
-                   GZip = args[0]; //во время работы с консолью  раскомментировать GZip, fIN, fOUT!!!!
-                   fIN = args[1];
-                   fOUT = args[2];
+                   Console.CancelKeyPress += delegate //ловим ctrl+c
+                   {
+                       GC.Collect(); //чистим мусор
+                       flag = false;
+                   };
+                   while ((true) & (flag))
+                   {
+                       GZip = "compress";          //
+                       fIN = "d:/file.txt";        //тестовые значения для отладки!!!!!
+                       fOUT = "d:/file.txt.gz";    //
+                       if (GZip == "compress")
+                       {
+                           Console.WriteLine("packing: ");
+                           GZipTest.Compress(fIN, fOUT);
+                       }
+                       else if (GZip == "decompress")
+                       {
+                           Console.Write("unpacking: ");
+                           GZipTest.Decompress(fIN, fOUT);
+                       }
+                       flag = false;
+                       GC.Collect(); //чистим мусор
+                   }
                }
                catch (Exception ex)
                {
-                   Console.WriteLine("ERROR: " + ex.Message+"|| Неверно введены параметры.");
+                   Console.WriteLine("ERROR: " + ex.Message);
                    GZipTest.error = true;
                }*/
-               
-            try
-            {
-                Console.CancelKeyPress += delegate //ловим ctrl+c
-                {
-                    GC.Collect(); //чистим мусор
-                    flag = false;
-                };
-                while ((true) & (flag))
-                {
-                    GZip = "compress";          //
-                    fIN = "d:/file.txt";        //тестовые значения для отладки!!!!!
-                    fOUT = "d:/file.txt.gz";    //
-                    if (GZip == "compress")
-                    {
-                        Console.WriteLine("packing: ");
-                        GZipTest.Compress(fIN, fOUT);
-                    }
-                    else if (GZip == "decompress")
-                    {
-                        Console.Write("unpacking: ");
-                        GZipTest.Decompress(fIN, fOUT);
-                    }
-                    flag = false;
-                    GC.Collect(); //чистим мусор
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("ERROR: " + ex.Message);
-                GZipTest.error = true;
-            }
+            FileModify.SplitFile("d:/test_decomp_3.avi");
+            FileModify.MergeFile("d:/test_merge.avi");
             TimeSpan sp = DateTime.Now - dold;
-           // FileCreation.Txt_Create(35000000000);
+           // FileModify.Txt_Create(35000000000);
            // Console.WriteLine("press Enter to terminate! CODE {0}", GZipTest.error ? "1" : "0");
             Console.WriteLine("completed in {0} secs", sp);
             Console.ReadLine();
