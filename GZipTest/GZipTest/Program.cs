@@ -129,7 +129,7 @@ namespace Compress_Decompress
     class FileModify
     {
          //public static long GZipLimit = 4294967296; // 4*2^30
-         public static long GZipLimit = 40000000;
+         public static long GZipLimit = 30000000;
 
         public static void SplitFile(string infile,int count,bool pack,long[]bytes)
         {
@@ -138,7 +138,6 @@ namespace Compress_Decompress
             var name = Path.GetFileNameWithoutExtension(infile);
             var directoryName = Path.GetDirectoryName(infile);
             byte[] buffer = new byte[GZipTest.BufferSize];
-            int tail =Convert.ToInt32( GZipLimit % GZipTest.BufferSize);
             using (FileStream _from_stream = new FileStream(infile, FileMode.Open))
             {
                 for (int i = 0; i < count+1; i++)
@@ -152,14 +151,16 @@ namespace Compress_Decompress
                         long offset = 0;
                         for (int k = 0; k < i; k++)
                         {
-                            offset =offset+ bytes[k+1];
+                            offset =offset+ bytes[k];
                         }
                         Console.Write(offset);
                         _from_stream.Position = pack ? (i * (GZipLimit)) : offset;
-                        while ((_to_stream.Length<GZipLimit)&&(_from_stream.Position<_from_stream.Length))
+                        long limit = pack ? GZipLimit : bytes[i];
+                        int tail = Convert.ToInt32(limit % GZipTest.BufferSize);
+                        while ((_to_stream.Length<limit)&&(_from_stream.Position<_from_stream.Length))
                         {
                             read = _from_stream.Read(buffer, 0, GZipTest.BufferSize);
-                            if ((GZipLimit - _to_stream.Position < GZipTest.BufferSize)&&(i!=count))
+                            if ((limit - _to_stream.Position < GZipTest.BufferSize))
                             {
                                 read = _from_stream.Read(buffer, 0, tail);
                             }
@@ -225,7 +226,7 @@ namespace Compress_Decompress
                     string inFrag = string.Format(directoryName + "boof1" + "_{0}" + extension, i);
                     GZipTest.Compress(inFrag, inFrag + ".gz");
                     FileStream buf = new FileStream(inFrag+".gz", FileMode.Open, FileAccess.Read);
-                    if (i< count) bytes[i+1]=buf.Length;
+                    if (i< count) bytes[i]=buf.Length;
                     Console.Write(" length {0}, offset {1}",i,bytes[i]);
                     buf.Close();
                 }
