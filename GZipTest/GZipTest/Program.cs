@@ -8,7 +8,7 @@ namespace Compress_Decompress
 
     class GZipTest
     {
-        public static int BufferSize = 2048 * 2048;  //!!!!!!
+        public static int BufferSize = 2048*2048;  //!!!!!!
         public static bool error;
         public static  int multithread = Environment.ProcessorCount;//количество потоков
      
@@ -30,21 +30,19 @@ namespace Compress_Decompress
                            // int[] read = new int[multithread];
                             byte[] buffer = new byte[BufferSize];
                             Thread[] thread = new Thread[multithread];
-                            object block = new object();
+                        //    object block = new object();
                             while ((inFile.Length - inFile.Position) > BufferSize)
                             {                                   
                                 for (j = 0; (j < multithread-1) && 
-                                    (inFile.Length - inFile.Position > BufferSize)&&
-                                    (inFile.Position<FileModify.GZipLimit); j++)
+                                    (inFile.Length - inFile.Position > BufferSize); j++)
                                 {
-                                 //   read = inFile.Read(buffer, 0, BufferSize);
-
+                                    read = inFile.Read(buffer, 0, BufferSize);
                                     thread[j] = new Thread(()=>
                                     {
-                                        lock(block)
+                                 //       lock(block)
                                         {
                                             Console.Write("- {0} -", j);
-                                            read = inFile.Read(buffer, 0, BufferSize);
+                                        //    read = inFile.Read(buffer, 0, BufferSize);
                                             inGZip.Write(buffer, 0, read);
                                         }
                                     });                                  
@@ -96,25 +94,23 @@ namespace Compress_Decompress
                                 for (j = 0; (j < multithread-1) && ((inFile.Length - inFile.Position) > BufferSize); j++)
                                 {
                                     read = outGZip.Read(buffer, 0, BufferSize);
-                                    thread[j] = new Thread(() =>
-                                    {
-                                        lock (block)
+                                       thread[j] = new Thread(() =>
+                                       {
+                                           lock (block)
+                                           {
+                                               Console.Write("- {0} -", j);
+                                               outFile.Write(buffer, 0, read);
+                                           }
+                                       });
+                                       thread[j].Start();
 
-                                        {
-                                            Console.Write("- {0} -", j);
-                                            outFile.Write(buffer, 0, read);
-                                        }
-
-                                    });
-                                    thread[j].Start();
-
-                                    //    thread[j].Join();
+                                    //       thread[j].Join();
+                                   }
+                                   for (i = 0; i < j; i++)
+                                   {
+                                       thread[i].Join();
+                                   }
                                 }
-                                for (i = 0; i < j; i++)
-                                {
-                                    thread[i].Join();
-                                }
-                            }
                             outFile.Write(buffer, 0, outGZip.Read(buffer, 0, BufferSize));
                             outFile.Close();
                         }
@@ -132,31 +128,38 @@ namespace Compress_Decompress
     }
     class FileModify
     {
-        // public static long GZipLimit = 4294967296; // 4*2^30
-         public static long GZipLimit = 30000000;
+         //public static long GZipLimit = 4294967296; // 4*2^30
+         public static long GZipLimit = 40000000;
 
-        public static void SplitFile(string infile)
+        public static void SplitFile(string infile,int count,bool pack,long[]bytes)
         {
             int read;
-            var extension = Path.GetExtension(infile);
+            var extension = pack ? Path.GetExtension(infile):Path.GetExtension(infile.Remove(infile.Length - 3));
             var name = Path.GetFileNameWithoutExtension(infile);
             var directoryName = Path.GetDirectoryName(infile);
             byte[] buffer = new byte[GZipTest.BufferSize];
             int tail =Convert.ToInt32( GZipLimit % GZipTest.BufferSize);
             using (FileStream _from_stream = new FileStream(infile, FileMode.Open))
             {
-                long _file_count = _from_stream.Length /GZipLimit;
-                for (int i = 0; i < _file_count+1; i++)
+                for (int i = 0; i < count+1; i++)
                 {
-                    using (FileStream _to_stream = new FileStream(string.Format(directoryName+"boof1"+"_{0}"+extension, i), 
+                    string comp_string = !pack ? string.Format(directoryName + "boof1" + "_{0}" + extension+".gz", i) :
+                             string.Format(directoryName + "boof1" + "_{0}"+extension, i);
+          using (FileStream _to_stream = new FileStream(comp_string, 
                                                                   FileMode.Create,FileAccess.Write))
                     {
-                        Console.WriteLine("{0}й том для архивации создается...", i);
-                        _from_stream.Position = i * GZipLimit;
+                        Console.WriteLine("{0}й том для обработки создается...", i);
+                        long offset = 0;
+                        for (int k = 0; k < i; k++)
+                        {
+                            offset =offset+ bytes[k+1];
+                        }
+                        Console.Write(offset);
+                        _from_stream.Position = pack ? (i * (GZipLimit)) : offset;
                         while ((_to_stream.Length<GZipLimit)&&(_from_stream.Position<_from_stream.Length))
                         {
                             read = _from_stream.Read(buffer, 0, GZipTest.BufferSize);
-                            if ((GZipLimit - _to_stream.Position < GZipTest.BufferSize)&&(i!=_file_count))
+                            if ((GZipLimit - _to_stream.Position < GZipTest.BufferSize)&&(i!=count))
                             {
                                 read = _from_stream.Read(buffer, 0, tail);
                             }
@@ -168,60 +171,106 @@ namespace Compress_Decompress
                 _from_stream.Close();
             }          
         }
-        public static void MergeFile(string infile)
+        public static void MergeFile(string infile,int count,bool pack)
         {
             int read;
-            var extension = Path.GetExtension(infile);
+            var extension = !pack ? Path.GetExtension(infile) : Path.GetExtension(infile.Remove(infile.Length - 3));
             var name = Path.GetFileNameWithoutExtension(infile);
             var directoryName = Path.GetDirectoryName(infile);
             byte[] buffer = new byte[GZipTest.BufferSize];
-            using (FileStream _to_stream = new FileStream(infile, FileMode.Append,FileAccess.Write))
+            using (FileStream _to_stream = new FileStream(infile, FileMode.Create,FileAccess.Write))
             {
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < count+1; i++)
                 {
-                    using (FileStream _from_stream = new FileStream(string.Format(directoryName + "boof1" + "_{0}" + ".avi"+".gz", i),
+                    Console.WriteLine(extension);
+                    string comp_string = !pack ? string.Format(directoryName + "boof1" + "_{0}" + extension, i) : 
+                                                 string.Format(directoryName + "boof1" + "_{0}"+extension+".gz", i); 
+
+                    using (FileStream _from_stream = new FileStream(comp_string,
                                                                   FileMode.Open, FileAccess.Read))
                     {
+                        Console.WriteLine("{0}й том соединен.", i);
                         //_from_stream.Position = i * GZipLimit;
-                     //   _to_stream.Position = i * GZipLimit;
+                        //   _to_stream.Position = i * GZipLimit;
                         while (((read = _from_stream.Read(buffer, 0, GZipTest.BufferSize)) != 0))
                         {
                             _to_stream.Write(buffer, 0, read);
                         }
                         _from_stream.Close();
                     }
-                    Console.WriteLine("{0}й том соединен.", i);
                 }
                  _to_stream.Close();
             }
-        }
-      
+        }      
     }
+
     class FileProcess
     {
-        static public void FileCompress(string infileName, string outfileName)
+        static public long[] FileCompress(string infileName, string outfileName)
         {
             FileStream infile = new FileStream(infileName, FileMode.Open, FileAccess.Read);
             var extension = Path.GetExtension(infileName);
-            var name = Path.GetFileNameWithoutExtension(infileName);
+          //  var name = Path.GetFileNameWithoutExtension(infileName);
             var directoryName = Path.GetDirectoryName(infileName);
             int count = Convert.ToInt32(infile.Length / FileModify.GZipLimit);
             long length = infile.Length;
+            long[] bytes = new long[count+1];
+            bytes[0] = 0;
             infile.Close();
-            if (length>FileModify.GZipLimit)
+            if (length > FileModify.GZipLimit)
             {
-                FileModify.SplitFile(infileName);
-                for (int i=0;i< count+1; i++)
+                FileModify.SplitFile(infileName, count, true, bytes);
+                for (int i = 0; i < count + 1; i++)
                 {
                     string inFrag = string.Format(directoryName + "boof1" + "_{0}" + extension, i);
                     GZipTest.Compress(inFrag, inFrag + ".gz");
+                    FileStream buf = new FileStream(inFrag+".gz", FileMode.Open, FileAccess.Read);
+                    if (i< count) bytes[i+1]=buf.Length;
+                    Console.Write(" length {0}, offset {1}",i,bytes[i]);
+                    buf.Close();
                 }
-                FileModify.MergeFile(outfileName);
+                FileModify.MergeFile(outfileName,count, true);
+            }
+            else
+            {
+                GZipTest.Compress(infileName, outfileName);
+            }
+            return bytes;
         }
-    }
+        static public void FileDecompress(string infileName, string outfileName, long[] bytes)
+        {
+            FileStream infile = new FileStream(infileName, FileMode.Open, FileAccess.Read);
+            var extension = Path.GetExtension(infileName.Remove(infileName.Length-3));
+            var directoryName = Path.GetDirectoryName(infileName);
+            int count = bytes.Length-1;
+            long length = infile.Length;
+           // long[] bytes = new long[count + 1];
+            infile.Close();
+            if (length > FileModify.GZipLimit)
+            {
+                FileModify.SplitFile(infileName,count,false,bytes);
+                for (int i = 0; i < count + 1; i++)
+                {
+                    string outFrag = string.Format(directoryName + "boof1" + "_{0}"+extension, i);
+                    GZipTest.Decompress(outFrag+".gz", outFrag);
+                    FileStream buf = new FileStream(outFrag + ".gz", FileMode.Open, FileAccess.Read);
+                    if (i < count) bytes[i + 1] = buf.Length;
+                    Console.Write(" length_unpack {0}, offset {1}", i, bytes[i]);
+                    buf.Close();
+
+                }
+                FileModify.MergeFile(outfileName,count,false);
+            }
+            else
+            {
+                GZipTest.Decompress(infileName, outfileName);
+            }
+
+        }
         class Program
         {
-            static string GZip, fIN, fOUT;
+            static long[] bytes;
+            static string GZip, fIN, fOUT, fIN2;
             static bool flag = true;
             public static void Main(string[] args)//параметры для командной строки должны быть закомментированы для отладки!!!!
             {
@@ -248,18 +297,22 @@ namespace Compress_Decompress
                     while ((true) & (flag))
                     {
                         GZip = "compress";
-                        fIN = string.Format("d:/test_merge.avi");
-                        fOUT = string.Format("d:/test_merge.avi.gz");
+                        fOUT = string.Format("d:/test2_.avi.gz");
+                        fIN = string.Format("d:/test2.avi");
+                        fIN2 = string.Format("d:/test_bytes.avi");
+
                         if (GZip == "compress")
                         {
-                            FileProcess.FileCompress(fIN, fOUT);
                             Console.WriteLine("packing: ");
+                        //      GZipTest.Compress(fIN, fOUT);
+                            FileProcess.FileDecompress(fOUT, fIN2, FileProcess.FileCompress(fIN, fOUT));
 
                         }
                         else if (GZip == "decompress")
                         {
-                            Console.Write("unpacking: ");
-                            GZipTest.Decompress(fIN, fOUT);
+                            Console.WriteLine("unpacking: ");
+                            FileProcess.FileDecompress(fIN, fOUT,bytes);
+                           //  GZipTest.Decompress(fIN, fOUT);
                         }
                         flag = false;
                         GC.Collect(); //чистим мусор
@@ -273,8 +326,7 @@ namespace Compress_Decompress
                 //    FileModify.SplitFile("d:/test_decomp_3.avi");
                 //   FileModify.MergeFile("d:/test_merge_2.avi.gz");
                 TimeSpan sp = DateTime.Now - dold;
-                // FileModify.Txt_Create(35000000000);
-                // Console.WriteLine("press Enter to terminate! CODE {0}", GZipTest.error ? "1" : "0");
+                Console.WriteLine("press Enter to terminate! CODE {0}", GZipTest.error ? "1" : "0");
                 Console.WriteLine("completed in {0} secs", sp);
                 Console.ReadLine();
             }
