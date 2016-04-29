@@ -9,7 +9,7 @@ namespace Compress_Decompress
 
     class GZipTest
     {
-        public static int BufferSize = 1024*1024*2;  //!!!!!!
+        public static int BufferSize = 1024*1024*4;  //!!!!!!
         public static bool error;
         public static int multithread = Environment.ProcessorCount;//количество потоков
 
@@ -163,8 +163,8 @@ namespace Compress_Decompress
     }
     class FileModify
     {
-        // public static long GZipLimit = 4294967296; // 4*2^30
-         public static long GZipLimit = 150000000;
+         public static long GZipLimit = 4294967296; // 4*2^30
+        // public static long GZipLimit = 300000000;
 
         public static void SplitFile(string infile,int count,bool pack,long[]bytes)
         {
@@ -342,27 +342,27 @@ namespace Compress_Decompress
                     while ((true) & (flag))
                     {
                         GZip = "compress";
-                        fIN = string.Format("d:/test2.avi");
-                        fOUT = string.Format("d:/test_comp_2.avi.gz");
-                        fIN2 = string.Format("d:/test2_.avi");
+                        fIN = string.Format("d:/file.txt");
+                        fOUT = string.Format("d:/file_.txt.gz");
+                        fIN2 = string.Format("d:/file_GZ.txt");
                         if (GZip == "compress")
                         {
                             Console.WriteLine("packing: ");
-                            //         bytes = FileProcess.FileCompress(fIN, fOUT);
+                                    bytes = FileProcess.FileCompress(fIN, fOUT);
                     //        GZipTest.Compress(fIN, fOUT);
                             TimeSpan sp1 = DateTime.Now - dold;
                             Console.WriteLine("completed in {0} secs", sp1);
                             dold = DateTime.Now;
                             Console.WriteLine("unpacking: ");
 
-                            //  FileProcess.FileDecompress(fOUT, fIN2, bytes);
-                            GZipTest.Decompress(fOUT, fIN2);
-                          /*  StreamWriter legend = new StreamWriter("d:\\legend.txt");
+                              FileProcess.FileDecompress(fOUT, fIN2, bytes);
+                      //      GZipTest.Decompress(fOUT, fIN2);
+                            StreamWriter legend = new StreamWriter("d:\\legend.txt");
                             for (int i = 0; i < bytes.Length; i++)
                             {
                                 legend.WriteLine(bytes[i]);
                             }
-                            legend.Close();  */                       
+                            legend.Close();                         
                         }
                         else if (GZip == "decompress")
                         {
